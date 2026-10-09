@@ -1,0 +1,21 @@
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+
+# Temporary operating-system files
+.DS_Store
+Thumbs.db
+
+# Large reproducible analysis output
+outputs/analysis/eda_results/factdrill_eda_with_lengths.csv

@@ -1,0 +1,13 @@
+numpy
+pandas
+requests
+faiss-cpu
+torch
+beautifulsoup4
+rank-bm25
+sentence-transformers
+transformers
+ddgs
+fastapi
+uvicorn[standard]
+pydantic
