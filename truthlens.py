@@ -2,7 +2,6 @@ import os
 import re
 import math
 import time
-import subprocess
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -17,6 +16,9 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from ddgs import DDGS
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
 
 # ============================================================
@@ -24,6 +26,9 @@ from ddgs import DDGS
 # ============================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Load GEMINI_API_KEY / GEMINI_MODEL from the .env file in this folder
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 EVIDENCE_FILE = os.path.join(
     BASE_DIR,
@@ -52,7 +57,17 @@ DETAIL_FILE = os.path.join(
     "truthlens_evidence_details.csv"
 )
 
-OLLAMA_MODEL = "llama3.2:3b"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+LLM_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL") or None
+
+if not GEMINI_API_KEY:
+    raise RuntimeError(
+        "GEMINI_API_KEY not found. Create a .env file next to truthlens.py "
+        "containing:  GEMINI_API_KEY=your_key_here"
+    )
+
+llm_client = genai.Client(api_key=GEMINI_API_KEY)
 
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
@@ -197,46 +212,43 @@ print("Models loaded successfully.")
 
 
 # ============================================================
-# OLLAMA HELPER
+# LLM HELPER (Gemini API)
 # ============================================================
 
-def ollama(prompt, timeout=180):
+def call_llm(prompt, timeout=180):
+    """Send a prompt to Gemini and return the text reply ("" on failure).
 
-    try:
+    - Retries when the server is busy (429 / 503 / 500).
+    - If the main model keeps failing, switches to FALLBACK_MODEL (if set).
+    - Permanent errors (wrong key, wrong model name) skip retries.
+    """
+    retryable_markers = ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE", "500", "INTERNAL")
+    models_to_try = [LLM_MODEL] + ([FALLBACK_MODEL] if FALLBACK_MODEL else [])
 
-        result = subprocess.run(
-            [
-                "ollama",
-                "run",
-                OLLAMA_MODEL
-            ],
-            input=prompt,
-            text=True,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout
-        )
+    for model_name in models_to_try:
+        for attempt in range(1, 6):
+            try:
+                response = llm_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(temperature=0.0),
+                )
+                return (response.text or "").strip()
 
-        if result.returncode != 0:
+            except Exception as e:
+                message = str(e)
+                print(f"LLM error ({model_name}, attempt {attempt}/5): {message[:150]}")
 
-            print(
-                "Ollama error:",
-                result.stderr
-            )
+                if not any(marker in message for marker in retryable_markers):
+                    break  # permanent error for this model, try the next one
 
-            return ""
+                time.sleep(min(5 * attempt, 20))
 
-        return result.stdout.strip()
+    return ""
 
-    except Exception as e:
 
-        print(
-            "Ollama exception:",
-            e
-        )
-
-        return ""
+# Backward-compatible name: other files may still call ollama(...)
+ollama = call_llm
 
 
 # ============================================================
@@ -310,7 +322,7 @@ OUTPUT:
         "",
         response,
         flags=re.IGNORECASE
-    ).strip()
+    ).strip().strip("\"'").strip()
 
     invalid_phrases = [
         "i can't assist",

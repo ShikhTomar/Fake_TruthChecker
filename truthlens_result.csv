@@ -1,0 +1,5 @@
+original_post,extracted_claim,atomic_claims,final_verdict,confidence,explanation
+The Earth revolves around the Sun.,The Earth revolves around the Sun.,The Earth revolves around the Sun.,SUPPORTED,1.0,"The verdict is **SUPPORTED** based on the provided evidence:
+
+* **Direct Confirmation:** Evidence 1 (*Britannica*) explicitly states that the Earth ""revolves around the Sun,"" taking approximately 365 days, 6 hours, and 9 minutes to complete a full trip. 
+* **Scientific Consensus and Mechanism:** Evidence 3 (*Sciencing*) also affirms that the Earth ""actually revolves around, or orbits, the sun"" once every year (about 365 days), held in place by the Sun's immense gravitational pull combined with the planet's forward velocity. Evidence 2 further discusses Newton's laws of gravitation that explain this orbit."
