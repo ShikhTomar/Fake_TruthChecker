@@ -51,6 +51,7 @@ class VerifyResponse(BaseModel):
     verdict: str
     confidence: float | None
     explanation: str
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
 
 
 @app.get("/health")
@@ -69,9 +70,24 @@ def verify_claim(request: VerifyRequest) -> dict[str, Any]:
         with _verification_lock:
             result = truthlens.run_truthlens(text)
 
-        # Normalize output for JSON. Do not invent evidence fields the current pipeline
-        # does not return yet; evidence cards can be added in a later integration step.
         confidence = result.get("confidence")
+        evidence_list = []
+        for item in result.get("evidence", []):
+            evidence_list.append({
+                "source": str(item.get("source", "")),
+                "website": str(item.get("website", "")),
+                "title": str(item.get("title", "")),
+                "publish_date": str(item.get("publish_date", "")),
+                "retrieval_score": round(float(item.get("retrieval_score", 0.0)), 4),
+                "temporal_score": round(float(item.get("temporal_score", 1.0)), 4),
+                "credibility": round(float(item.get("credibility", 1.0)), 2),
+                "evidence_weight": round(float(item.get("evidence_weight", 0.0)), 4),
+                "nli_label": str(item.get("nli_label", "")).upper(),
+                "nli_confidence": round(float(item.get("nli_confidence", 0.0)), 4),
+                "relevance_gate": str(item.get("relevance_gate", "ACCEPTED")),
+                "snippet": str(item.get("nli_passage", item.get("evidence", "")))[:350],
+            })
+
         return {
             "success": True,
             "claim": str(result.get("claim", "")),
@@ -79,6 +95,7 @@ def verify_claim(request: VerifyRequest) -> dict[str, Any]:
             "verdict": str(result.get("verdict", "INSUFFICIENT_EVIDENCE")),
             "confidence": float(confidence) if confidence is not None else None,
             "explanation": str(result.get("explanation", "")),
+            "evidence": evidence_list,
         }
     except HTTPException:
         raise

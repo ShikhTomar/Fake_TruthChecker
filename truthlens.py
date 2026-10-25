@@ -71,9 +71,11 @@ llm_client = genai.Client(api_key=GEMINI_API_KEY)
 
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
-NLI_MODEL = (
-    "MoritzLaurer/"
-    "mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+# Default to XLM-RoBERTa NLI as specified in the reference architecture diagram.
+# Can be overridden via NLI_MODEL environment variable in .env
+NLI_MODEL = os.getenv(
+    "NLI_MODEL",
+    "symanto/xlm-roberta-base-snli-mnli-anli-xnli"
 )
 
 # Number of historical candidates retrieved by BM25
@@ -353,13 +355,20 @@ OUTPUT:
 
 def decompose_claim(claim):
 
-    # Conservative guard: a single-sentence input is already treated as
-    # one claim. Do not let the LLM invent extra/background claims.
-    # Multi-clause decomposition can be re-enabled later with a validator.
     claim = claim.strip()
+    if not claim:
+        return []
+
     sentence_parts = [x.strip() for x in re.split(r"(?<=[.!?])\s+", claim) if x.strip()]
-    if len(sentence_parts) <= 1:
-        return [claim] if claim else []
+    has_compound_conjunctions = bool(re.search(
+        r"\b(and|while|but|after|along with|as well as|meanwhile)\b|[;,]",
+        claim,
+        flags=re.IGNORECASE
+    ))
+
+    # Single-clause simple statement with fewer than 8 words can skip decomposition
+    if len(sentence_parts) <= 1 and not has_compound_conjunctions and len(claim.split()) < 8:
+        return [claim]
 
     prompt = f"""
 You are a claim decomposition module in a fact-checking system.
@@ -605,63 +614,83 @@ def historical_retrieval(
     claim,
     top_k=HISTORICAL_RETRIEVAL_K
 ):
+    """Retrieve historical candidates from FactDrill using hybrid BM25 + FAISS search.
 
+    Implements the 'Historical Corpus (FactDrill)' component from the reference architecture.
+    Combines exact keyword BM25 retrieval with dense semantic FAISS vector retrieval using
+    Reciprocal Rank Fusion (RRF).
+    """
+    # 1. BM25 keyword retrieval
     query_tokens = claim.lower().split()
+    bm25_scores = bm25.get_scores(query_tokens)
+    bm25_top_indices = np.argsort(bm25_scores)[::-1][:top_k * 3]
 
-    scores = bm25.get_scores(
-        query_tokens
-    )
+    # 2. FAISS dense semantic retrieval
+    faiss_query_text = "query: " + claim
+    query_vector = embedding_model.encode(
+        [faiss_query_text],
+        normalize_embeddings=True,
+        show_progress_bar=False
+    ).astype("float32")
 
-    top_indices = np.argsort(
-        scores
-    )[::-1][:top_k]
+    faiss_k = min(top_k * 3, int(faiss_index.ntotal))
+    faiss_sims, faiss_top_indices = faiss_index.search(query_vector, faiss_k)
+    faiss_top_indices = faiss_top_indices[0]
+    faiss_sims = faiss_sims[0]
+
+    # 3. Reciprocal Rank Fusion (RRF)
+    # RRF Score = 1 / (60 + rank_bm25) + 1 / (60 + rank_faiss)
+    rrf_k = 60
+    doc_scores = {}
+    doc_metadata = {}
+
+    for rank, idx in enumerate(bm25_top_indices, start=1):
+        idx = int(idx)
+        if idx < 0 or idx >= len(evidence_df):
+            continue
+        ev_id = str(evidence_df.iloc[idx]["evidence_id"])
+        doc_scores[idx] = doc_scores.get(idx, 0.0) + (1.0 / (rrf_k + rank))
+        doc_metadata[idx] = {
+            "evidence_id": ev_id,
+            "row": evidence_df.iloc[idx],
+            "bm25_score": float(bm25_scores[idx]),
+            "faiss_score": 0.0
+        }
+
+    for rank, (idx, sim) in enumerate(zip(faiss_top_indices, faiss_sims), start=1):
+        idx = int(idx)
+        if idx < 0 or idx >= len(evidence_df):
+            continue
+        doc_scores[idx] = doc_scores.get(idx, 0.0) + (1.0 / (rrf_k + rank))
+        if idx not in doc_metadata:
+            ev_id = str(evidence_df.iloc[idx]["evidence_id"])
+            doc_metadata[idx] = {
+                "evidence_id": ev_id,
+                "row": evidence_df.iloc[idx],
+                "bm25_score": 0.0,
+                "faiss_score": float(sim)
+            }
+        else:
+            doc_metadata[idx]["faiss_score"] = float(sim)
+
+    # Sort candidates by combined RRF score
+    sorted_indices = sorted(doc_scores.keys(), key=lambda i: doc_scores[i], reverse=True)[:top_k]
 
     results = []
-
-    for idx in top_indices:
-
-        row = evidence_df.iloc[idx]
-
+    for idx in sorted_indices:
+        item = doc_metadata[idx]
+        row = item["row"]
         results.append({
-            "evidence_id": str(
-                row["evidence_id"]
-            ),
-            "evidence": str(
-                row["investigation"]
-            ),
-            "website": str(
-                row.get(
-                    "website",
-                    ""
-                )
-            ),
-            "title": str(
-                row.get(
-                    "title",
-                    ""
-                )
-            ),
-            "publish_date": str(
-                row.get(
-                    "publish_date",
-                    ""
-                )
-            ),
-            "topic": str(
-                row.get(
-                    "topic",
-                    ""
-                )
-            ),
-            "tags": str(
-                row.get(
-                    "tags",
-                    ""
-                )
-            ),
-            "retrieval_score": float(
-                scores[idx]
-            ),
+            "evidence_id": item["evidence_id"],
+            "evidence": str(row["investigation"]),
+            "website": str(row.get("website", "")),
+            "title": str(row.get("title", "")),
+            "publish_date": str(row.get("publish_date", "")),
+            "topic": str(row.get("topic", "")),
+            "tags": str(row.get("tags", "")),
+            "retrieval_score": float(doc_scores[idx]),
+            "bm25_score": item["bm25_score"],
+            "faiss_score": item["faiss_score"],
             "source": "HISTORICAL"
         })
 
@@ -2214,7 +2243,13 @@ def run_truthlens(
             final_confidence,
 
         "explanation":
-            explanation
+            explanation,
+
+        "evidence":
+            all_evidence_for_rag,
+
+        "atomic_results":
+            atomic_results
     }
 
 

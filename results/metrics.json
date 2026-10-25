@@ -1,0 +1,76 @@
+{
+  "model_name": "symanto/xlm-roberta-base-snli-mnli-anli-xnli",
+  "dataset": "FactDrill Evidence Corpus",
+  "total_samples": 240,
+  "train_samples": 167,
+  "val_samples": 37,
+  "test_samples": 36,
+  "baseline_metrics": {
+    "accuracy": 0.5833333333333334,
+    "precision_macro": 0.5529878618113911,
+    "recall_macro": 0.5833333333333334,
+    "f1_macro": 0.5525811655575721,
+    "precision_weighted": 0.5529878618113913,
+    "recall_weighted": 0.5833333333333334,
+    "f1_weighted": 0.552581165557572
+  },
+  "best_config": {
+    "name": "Config-3 (lr=1e-3, wd=0.01, drop=0.2, hdim=256)",
+    "lr": 0.001,
+    "weight_decay": 0.01,
+    "dropout": 0.2,
+    "hidden_dim": 256,
+    "epochs": 20
+  },
+  "tuning_results": [
+    {
+      "config": "Config-1 (lr=3e-4, wd=0.001, drop=0.1, hdim=128)",
+      "lr": 0.0003,
+      "weight_decay": 0.001,
+      "dropout": 0.1,
+      "hidden_dim": 128,
+      "val_loss": 0.6615160300924972,
+      "val_accuracy": 0.6756756756756757,
+      "val_f1_macro": 0.6299019607843137
+    },
+    {
+      "config": "Config-2 (lr=5e-4, wd=0.01, drop=0.2, hdim=256)",
+      "lr": 0.0005,
+      "weight_decay": 0.01,
+      "dropout": 0.2,
+      "hidden_dim": 256,
+      "val_loss": 0.6872819935953295,
+      "val_accuracy": 0.6756756756756757,
+      "val_f1_macro": 0.6276262626262626
+    },
+    {
+      "config": "Config-3 (lr=1e-3, wd=0.01, drop=0.2, hdim=256)",
+      "lr": 0.001,
+      "weight_decay": 0.01,
+      "dropout": 0.2,
+      "hidden_dim": 256,
+      "val_loss": 0.5937943023604315,
+      "val_accuracy": 0.7837837837837838,
+      "val_f1_macro": 0.7816738816738816
+    },
+    {
+      "config": "Config-4 (lr=2e-3, wd=0.05, drop=0.3, hdim=512)",
+      "lr": 0.002,
+      "weight_decay": 0.05,
+      "dropout": 0.3,
+      "hidden_dim": 512,
+      "val_loss": 0.6933308791469883,
+      "val_accuracy": 0.7027027027027027,
+      "val_f1_macro": 0.6909649490294653
+    }
+  ],
+  "tuned_metrics": {
+    "accuracy": 0.6388888888888888,
+    "precision_macro": 0.6296296296296297,
+    "recall_macro": 0.638888888888889,
+    "f1_macro": 0.6111111111111112,
+    "precision_weighted": 0.6296296296296297,
+    "recall_weighted": 0.6388888888888888,
+    "f1_weighted": 0.6111111111111112
+  }
+}

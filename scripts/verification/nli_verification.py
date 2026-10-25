@@ -16,15 +16,8 @@ EVIDENCE_FILE = BASE / "factdrill_evidence_corpus.csv"
 
 OUTPUT_FILE = BASE / "nli_verification_results.csv"
 
-MODEL_PATH = (
-    Path.home()
-    / ".cache"
-    / "huggingface"
-    / "hub"
-    / "models--MoritzLaurer--mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
-    / "snapshots"
-    / "b5113eb38ab63efdd7f280f8c144ea8b13f978ce"
-)
+# XLM-RoBERTa cross-lingual NLI model as specified in the reference architecture
+MODEL_NAME = "symanto/xlm-roberta-base-snli-mnli-anli-xnli"
 
 # ============================================================
 # LOAD FILES
@@ -150,13 +143,11 @@ if len(nli_df) == 0:
 print("\nLoading local NLI model...")
 
 tokenizer = AutoTokenizer.from_pretrained(
-    str(MODEL_PATH),
-    local_files_only=True
+    MODEL_NAME
 )
 
 model = AutoModelForSequenceClassification.from_pretrained(
-    str(MODEL_PATH),
-    local_files_only=True
+    MODEL_NAME
 )
 
 device = torch.device(

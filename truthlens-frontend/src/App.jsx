@@ -243,6 +243,53 @@ function App() {
               </div>
             )}
 
+            {Array.isArray(result.evidence) && result.evidence.length > 0 && (
+              <div className="rounded-2xl border border-white/10 bg-[#111827] p-5 sm:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={18} className="text-indigo-300" />
+                    <h3 className="font-semibold">Retrieved Evidence & XLM-R NLI Evaluation</h3>
+                  </div>
+                  <span className="text-xs text-slate-400">{result.evidence.length} evidence sources ranked</span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {result.evidence.map((item, index) => (
+                    <div key={index} className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-xs leading-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded px-2 py-0.5 font-semibold text-[10px] ${
+                            item.source === 'HISTORICAL' ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300'
+                          }`}>
+                            {item.source === 'HISTORICAL' ? 'FactDrill Corpus' : 'Real-Time Web'}
+                          </span>
+                          <span className="font-medium text-slate-300">{item.website || 'Source'}</span>
+                          {item.publish_date && <span className="text-slate-500">· {item.publish_date.slice(0, 10)}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded px-2 py-0.5 font-bold text-[10px] ${
+                            item.nli_label === 'ENTAILMENT' ? 'bg-emerald-500/20 text-emerald-400' :
+                            item.nli_label === 'CONTRADICTION' ? 'bg-rose-500/20 text-rose-400' :
+                            'bg-amber-500/20 text-amber-300'
+                          }`}>
+                            XLM-R: {item.nli_label} ({(item.nli_confidence * 100).toFixed(1)}%)
+                          </span>
+                        </div>
+                      </div>
+                      {item.title && <p className="mt-2 font-semibold text-slate-200">{item.title}</p>}
+                      <p className="mt-1 text-slate-400 line-clamp-3">{item.snippet}</p>
+                      <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+                        <span>Rank: #{index + 1}</span>
+                        <span>Retrieval: {item.retrieval_score}</span>
+                        <span>Temporal: {item.temporal_score}</span>
+                        <span>Credibility: {item.credibility}x</span>
+                        <span>Weight: {item.evidence_weight}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-2xl border border-white/10 bg-[#111827] p-5 sm:p-6">
               <div className="flex items-center gap-2">
                 <Search size={18} className="text-indigo-300" />
