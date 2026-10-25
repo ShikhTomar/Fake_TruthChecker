@@ -1,426 +1,427 @@
-\# TruthLens — AI-Powered Fact-Checking System
+# TruthLens: Evidence-Aware Multilingual Misinformation Verification System
 
+TruthLens is an end-to-end NLP and machine learning system designed to detect and verify misinformation in social media text. Built around the **FactDrill multilingual evidence corpus**, it combines historical fact-checking records with real-time web evidence to produce evidence-grounded verification results.
 
+The system integrates **hybrid retrieval (BM25 + FAISS), real-time web retrieval, multilingual evidence ranking, XLM-RoBERTa Natural Language Inference (NLI), temporal and source credibility scoring, conflict resolution, and Retrieval-Augmented Generation (RAG) explanations**.
 
-TruthLens is an AI-powered fact-checking project designed to evaluate textual claims using evidence retrieval, Natural Language Inference (NLI), real-time web search, and AI-generated explanations.
+## Table of Contents
 
+- [Key Features](#key-features)
+- [System Architecture](#system-architecture)
+- [Architectural Stages](#architectural-stages)
+- [Machine Learning and Evaluation](#machine-learning-and-evaluation)
+- [Repository Structure](#repository-structure)
+- [Installation and Setup](#installation-and-setup)
+- [Running the Project](#running-the-project)
+- [Evaluation Visualizations](#evaluation-visualizations)
+- [Technology Stack](#technology-stack)
+- [Limitations](#limitations)
 
+---
 
-The project combines historical evidence with online information to help users investigate claims and understand the evidence behind a verdict.
+## Key Features
 
+- **Claim Extraction:** Identifies the factual assertion from conversational or social media text.
+- **Claim Decomposition:** Breaks complex statements into independently verifiable propositions.
+- **Hybrid Evidence Retrieval:** Combines lexical BM25 retrieval and dense FAISS vector search.
+- **Real-Time Web Retrieval:** Retrieves recent evidence using DuckDuckGo search and webpage extraction.
+- **Multilingual Evidence Ranking:** Ranks candidate evidence using multilingual sentence embeddings.
+- **Cross-Lingual Verification:** Uses XLM-RoBERTa to classify evidence relationships.
+- **Temporal and Credibility Analysis:** Considers evidence recency, source credibility, and conflicting information.
+- **Evidence-Grounded Explanations:** Generates explanations based on retrieved evidence.
+- **Model Training and Hyperparameter Tuning:** Supports baseline evaluation, configuration comparison, and result visualization.
+- **Interactive Web Interface:** Provides a React-based interface backed by a FastAPI service.
 
+## System Architecture
 
-\## Features
+TruthLens follows a dual-stream retrieval architecture in which historical evidence and real-time web evidence are combined before verification.
 
+```mermaid
+flowchart TD
+    A["Social Media Text (Input)"]
+    B["Claim Extraction"]
+    C["Claim Decomposition"]
 
+    D["Historical Corpus Search<br/>FactDrill: BM25 + FAISS"]
+    E["Real-Time Web Retrieval<br/>DuckDuckGo + Web Scraping"]
 
-\- \*\*Evidence Retrieval:\*\* Retrieves relevant evidence from the FactDrill dataset using semantic and keyword-based retrieval.
+    F["Evidence Pooling and Ranking<br/>Multilingual E5 Cosine Similarity"]
+    G["XLM-RoBERTa NLI<br/>Entailment / Neutral / Contradiction"]
+    H["Temporal Scoring"]
+    I["Source Credibility Assessment"]
+    J["Conflict Resolution and Confidence Aggregation"]
+    K["Final Verdict<br/>Supported / Contradicted / Insufficient Evidence"]
+    L["RAG Explanation<br/>Evidence-Grounded Justification"]
 
-\- \*\*Semantic Search:\*\* Uses FAISS for vector-based evidence retrieval.
+    A --> B --> C
+    C --> D
+    C --> E
+    D --> F
+    E --> F
+    F --> G --> H --> I --> J --> K --> L
 
-\- \*\*Hybrid Retrieval:\*\* Combines keyword-based and semantic retrieval approaches.
+    classDef input fill:#dbeafe,stroke:#2563eb,color:#111827
+    classDef retrieval fill:#dcfce7,stroke:#16a34a,color:#111827
+    classDef verification fill:#fef3c7,stroke:#d97706,color:#111827
+    classDef output fill:#f3e8ff,stroke:#9333ea,color:#111827
 
-\- \*\*NLI Verification:\*\* Analyzes relationships between claims and evidence, including entailment, contradiction, and neutral relationships.
+    class A,B,C input
+    class D,E,F retrieval
+    class G,H,I,J verification
+    class K,L output
+```
 
-\- \*\*Real-Time Evidence Retrieval:\*\* Searches the web for potentially relevant and recent information.
+### Architectural Stages
 
-\- \*\*Conflict Resolution:\*\* Combines evidence and verification results to produce a final verdict.
+1. **Claim Extraction:** Processes raw input to isolate the factual assertion while preserving relevant entities, numbers, and dates.
 
-\- \*\*AI-Generated Explanations:\*\* Uses Ollama to generate explanations for fact-checking results.
+2. **Claim Decomposition:** Splits complex or multi-clause claims into smaller, independently verifiable propositions.
 
-\- \*\*REST API:\*\* Provides a FastAPI backend.
+3. **Dual-Stream Retrieval:**
+   - **Historical stream:** Searches the FactDrill evidence corpus using BM25 lexical retrieval and FAISS dense vector search. Reciprocal Rank Fusion (RRF) can combine the rankings.
+   - **Real-time stream:** Searches web sources through DuckDuckGo and extracts relevant webpage content to incorporate recent information.
 
-\- \*\*Frontend:\*\* A React application built with Vite.
+4. **Evidence Ranking:** Ranks the retrieved evidence using normalized embeddings from `intfloat/multilingual-e5-small`.
 
+5. **XLM-RoBERTa Natural Language Inference:** Evaluates premise–hypothesis relationships using three classes:
+   - `ENTAILMENT`
+   - `NEUTRAL`
+   - `CONTRADICTION`
 
+   A directional relation check can help identify potentially incorrect entailment predictions for asymmetric claims.
 
-\## Tech Stack
+6. **Temporal and Credibility Analysis:** Applies publication-recency scoring, source credibility weighting, evidence filtering, and competing-signal analysis. The implemented thresholds and weights should be interpreted according to the actual configuration used by the pipeline.
 
+7. **Final Verdict:** Aggregates the verification signals into one of three outcomes:
+   - `SUPPORTED`
+   - `CONTRADICTED`
+   - `INSUFFICIENT_EVIDENCE`
 
+8. **RAG Explanation:** Produces a human-readable explanation grounded in retrieved evidence. Generated explanations should be checked against the cited sources.
 
-\### Backend and AI
+---
 
-\- Python
+## Machine Learning and Evaluation
 
-\- FastAPI
+TruthLens includes a separate training and evaluation workflow for optimizing the XLM-RoBERTa classification head using the FactDrill corpus.
 
-\- PyTorch
+The workflow supports baseline evaluation, hyperparameter grid search, held-out testing, and graphical analysis.
 
-\- Hugging Face Transformers
+### Model Evaluation on the Held-Out Test Set
 
-\- Sentence Transformers
+The following results represent the reported evaluation figures for the baseline and tuned configurations.
 
-\- FAISS
+| Metric | Baseline Model | Tuned Model (Config-3) | Improvement |
+|---|---:|---:|---:|
+| Accuracy | 58.33% | **63.89%** | +5.56 percentage points |
+| Macro Precision | 55.30% | **62.96%** | +7.66 percentage points |
+| Macro Recall | 58.33% | **63.89%** | +5.56 percentage points |
+| Macro F1-Score | 55.26% | **61.11%** | +5.85 percentage points |
+| Weighted F1-Score | 55.26% | **61.11%** | +5.85 percentage points |
 
-\- BM25
+**Result interpretation:** The tuned model improves all five reported metrics over the baseline. However, the reported held-out test accuracy of 63.89% is lower than the best validation accuracy, so further testing and error analysis are needed before claiming strong generalization.
 
-\- Pandas and NumPy
+### Hyperparameter Grid Search
 
-\- Beautiful Soup
+The following configurations compare learning rate, weight decay, dropout, and hidden-layer dimensions.
 
-\- DDGS
+| Configuration | Learning Rate | Weight Decay | Dropout | Hidden Dim | Validation Accuracy | Validation Macro F1 |
+|---|---:|---:|---:|---:|---:|---:|
+| Config-1 | 0.0003 | 0.001 | 0.1 | 128 | 67.57% | 62.99% |
+| Config-2 | 0.0005 | 0.010 | 0.2 | 256 | 67.57% | 62.76% |
+| **Config-3 (Best)** | **0.001** | **0.010** | **0.2** | **256** | **78.38%** | **78.17%** |
+| Config-4 | 0.002 | 0.050 | 0.3 | 512 | 70.27% | 69.10% |
 
-\- Ollama
+**Best validation configuration:** Config-3, with a learning rate of `0.001`, weight decay of `0.010`, dropout of `0.2`, and hidden dimension of `256`.
 
+The best validation configuration should not automatically be assumed to be the best-performing model on unseen data. The held-out test set is used for the final performance assessment.
 
+### Training Artifacts
 
-\### Frontend
+The training workflow is intended to store evaluation metrics, model checkpoints, and plots in the `results/` directory.
 
-\- React
+- `results/metrics.json` — baseline, tuned-model, and hyperparameter evaluation metrics.
+- `results/models/best_xlm_r_head.pt` — trained classification-head checkpoint.
+- `results/plots/` — training, evaluation, and comparison visualizations.
 
-\- Vite
+These paths depend on the training script's actual output configuration. Run the training workflow and verify that the artifacts exist before relying on them.
 
-\- Tailwind CSS
+---
 
-\- Lucide React
+## Repository Structure
 
-
-
-\## Project Structure
-
-
+The main repository structure is organized as follows. Some generated files and optional artifacts may be absent until their corresponding scripts have been executed.
 
 ```text
-
-TruthLens/
-
-├── FactDrill/                 # Original dataset files
-
-├── semantic\_index/             # FAISS index and evidence mapping
-
-├── semantic\_index\_test/        # Additional test index
-
-├── splits/                     # Dataset splits
-
+Fake_TruthChecker/
+│
 ├── scripts/
-
-│   ├── data\_preparation/
-
-│   ├── evaluation/
-
+│   ├── data_preparation/
 │   ├── retrieval/
-
-│   └── verification/
-
-├── outputs/                    # Analysis and pipeline outputs
-
-├── truthlens.py                # Main fact-checking pipeline
-
-├── truthlens\_api.py            # FastAPI application
-
-├── requirements.txt            # Python dependencies
-
-├── requirements-api.txt        # API dependencies
-
-├── .gitattributes              # Git LFS configuration
-
+│   ├── verification/
+│   └── evaluation/
+│
+├── semantic_index/
+│   ├── evidence.faiss
+│   └── evidence_mapping.csv
+│
+├── truthlens-frontend/
+│   ├── package.json
+│   ├── src/
+│   │   ├── App.jsx
+│   │   └── App.css
+│   └── vite.config.js
+│
+├── results/
+│   ├── metrics.json
+│   ├── models/
+│   │   └── best_xlm_r_head.pt
+│   └── plots/
+│       ├── training_validation_curves.png
+│       ├── hyperparameter_tuning_comparison.png
+│       ├── baseline_vs_tuned_metrics.png
+│       ├── confusion_matrix_baseline.png
+│       └── confusion_matrix_tuned.png
+│
+├── factdrill_evidence_corpus.csv
+├── truthlens.py
+├── truthlens_api.py
+├── train_and_evaluate.py
+├── model_training_evaluation.ipynb
+├── test_architecture_pipeline.py
+├── list_models.py
+├── requirements.txt
+├── requirements-api.txt
 ├── .gitignore
-
-└── truthlens-frontend/         # React frontend
-
+├── .env.example
+└── README.md
 ```
 
+**Note:** The tree describes the intended organization. Ensure the filenames and generated artifacts match the actual repository before publishing documentation.
 
+---
 
-\## Prerequisites
+## Installation and Setup
 
+### 1. Prerequisites
 
+Install the following tools:
 
-Install the following before running the project:
+- Python 3.10 or later
+- Node.js 18 or later and npm
+- Git
+- A code editor such as Visual Studio Code
 
+The exact supported versions depend on the installed dependencies.
 
-
-\- Python and pip
-
-\- Git
-
-\- Git LFS
-
-\- Node.js and npm
-
-\- Ollama
-
-
-
-The main application expects the Ollama model `llama3.2:3b`.
-
-
-
-\## 1. Clone the Repository
-
-
-
-Install Git LFS if you have not already installed it, then run:
-
-
+### 2. Clone the Repository
 
 ```bash
-
-git lfs install
-
-git clone https://github.com/Vaishnavi2-dot/TruthLens1.git
-
-cd TruthLens1
-
-git lfs pull
-
+git clone https://github.com/ShikhTomar/Fake_TruthChecker.git
+cd Fake_TruthChecker
 ```
 
+### 3. Create a Virtual Environment
 
+```bash
+python -m venv .venv
+```
 
-Git LFS downloads the large files tracked through Git LFS, including the evidence corpus and semantic index files.
-
-
-
-If a required file is missing after cloning, check the repository's LFS configuration and upload status.
-
-
-
-\## 2. Set Up the Python Environment
-
-
-
-Create and activate a virtual environment.
-
-
-
-\### Windows PowerShell
-
-
+Activate it on Windows PowerShell:
 
 ```powershell
-
-python -m venv .venv
-
-.\\.venv\\Scripts\\Activate.ps1
-
+.\.venv\Scripts\Activate.ps1
 ```
 
-
-
-If PowerShell blocks activation, use Command Prompt:
-
-
-
-```bat
-
-.venv\\Scripts\\activate.bat
-
-```
-
-
-
-Install the dependencies:
-
-
+On Linux or macOS:
 
 ```bash
+source .venv/bin/activate
+```
 
-python -m pip install --upgrade pip
+### 4. Install Python Dependencies
 
+Install the core project dependencies:
+
+```bash
 pip install -r requirements.txt
-
 ```
 
-
-
-The first run may download model files from Hugging Face. An internet connection may be required for initial model downloads and real-time web retrieval.
-
-
-
-\## 3. Install and Run Ollama
-
-
-
-Install Ollama from:
-
-
-
-https://ollama.com/
-
-
-
-Download the model used by the main application:
-
-
+For API-specific dependencies, if required by the project:
 
 ```bash
-
-ollama pull llama3.2:3b
-
+pip install -r requirements-api.txt
 ```
 
+### 5. Configure Environment Variables
 
+Create a local `.env` file in the directory expected by the application. Use the following as a template, adapting the values to the configuration supported by your code:
 
-Verify that the model is available:
+```dotenv
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_FALLBACK_MODEL=gemini-1.5-flash
+NLI_MODEL=symanto/xlm-roberta-base-snli-mnli-anli-xnli
+```
 
+Replace the placeholder API key with your own valid key. Do not commit `.env` to GitHub. Keep `.env.example` free of real credentials.
 
+### 6. Install Frontend Dependencies
 
 ```bash
-
-ollama list
-
-```
-
-
-
-Ensure Ollama is running before using features that generate AI explanations.
-
-
-
-\## 4. Run the Backend API
-
-
-
-From the project root, activate the Python virtual environment and run:
-
-
-
-```bash
-
-uvicorn truthlens\_api:app --reload
-
-```
-
-
-
-The API should be available at:
-
-
-
-```text
-
-http://127.0.0.1:8000
-
-```
-
-
-
-Open the interactive API documentation at:
-
-
-
-http://127.0.0.1:8000/docs
-
-
-
-Use the Swagger interface to inspect the available endpoints and test requests.
-
-
-
-\## 5. Run the Frontend
-
-
-
-Open a second terminal and navigate to the frontend directory:
-
-
-
-```bash
-
 cd truthlens-frontend
-
 npm install
-
-npm run dev
-
+cd ..
 ```
 
+---
 
+## Running the Project
 
-Open the local URL printed by Vite in the terminal.
+Run the commands from the repository root unless otherwise indicated.
 
+### A. Train and Evaluate the Model
 
+Execute dataset preparation, baseline training, hyperparameter tuning, and result generation:
 
-Make sure the backend is running as well. The frontend and backend must use matching API URLs and compatible CORS settings.
+```bash
+python train_and_evaluate.py
+```
 
+The script's actual implementation determines which stages execute and which artifacts are generated.
 
+### B. Launch the Jupyter Notebook
 
-\## 6. Main Runtime Files
+For interactive model analysis and academic presentations:
 
+```bash
+jupyter notebook model_training_evaluation.ipynb
+```
 
+If Jupyter Notebook is not installed in the active environment, install it first:
 
-The main application currently expects these files:
+```bash
+pip install notebook
+```
 
+### C. Run the Command-Line Interface
 
+Launch the claim-verification pipeline:
 
-\- `factdrill\_evidence\_corpus.csv`
+```bash
+python truthlens.py
+```
 
-\- `semantic\_index/evidence.faiss`
+Follow the prompts displayed by the application.
 
-\- `semantic\_index/evidence\_mapping.csv`
+### D. Start the FastAPI Backend
 
+From the repository root:
 
+```bash
+uvicorn truthlens_api:app --host 127.0.0.1 --port 8000
+```
 
-Keep these paths consistent with the configuration in `truthlens.py`.
+If the API module or its dependencies require a different working directory, adjust the command accordingly.
 
+The API is expected to expose the verification endpoint and health endpoint, subject to the implementation in `truthlens_api.py`.
 
+- API base URL: `http://127.0.0.1:8000`
+- Interactive API documentation: `http://127.0.0.1:8000/docs`
 
-The original FactDrill dataset, dataset splits, and evaluation outputs support research and experimentation. Some of these files can be regenerated using scripts in the `scripts/` directory, depending on the stage of the pipeline.
+### E. Start the React Frontend
 
+Open a second terminal:
 
+```bash
+cd truthlens-frontend
+npm install
+npm run dev
+```
 
-\## 7. Research and Development
+Open the local URL printed by Vite in your browser. The default is commonly:
 
+`http://localhost:5173`
 
+Ensure that the frontend's configured backend URL matches the running FastAPI service.
 
-The scripts are grouped by purpose:
+### F. Run Architecture Tests
 
+Run the architecture and component verification script:
 
+```bash
+python test_architecture_pipeline.py
+```
 
-\- `scripts/data\_preparation/` — dataset cleaning, unification, splitting, and index construction.
+This script is intended to check pipeline components and their integration. Its actual test coverage depends on the implemented assertions.
 
-\- `scripts/retrieval/` — keyword retrieval, semantic retrieval, hybrid retrieval, and real-time evidence collection.
+---
 
-\- `scripts/verification/` — NLI, conflict resolution, temporal credibility, and explanation generation.
+## Evaluation Visualizations
 
-\- `scripts/evaluation/` — retrieval evaluation, dataset analysis, duplicate detection, and tuning.
+The training and evaluation workflow can produce the following academic visualizations under `results/plots/`.
 
+| Visualization | Purpose |
+|---|---|
+| `training_validation_curves.png` | Visualizes training loss and validation performance across epochs. |
+| `hyperparameter_tuning_comparison.png` | Compares validation accuracy and Macro F1 across configurations. |
+| `baseline_vs_tuned_metrics.png` | Compares baseline and tuned models across the reported evaluation metrics. |
+| `confusion_matrix_baseline.png` | Shows baseline classification errors across the NLI classes. |
+| `confusion_matrix_tuned.png` | Shows tuned-model classification errors across the NLI classes. |
 
+These figures can support academic demonstrations, model comparison, and viva presentations. Their availability depends on successfully executing the relevant training and plotting code.
 
-Check each script's input paths and configuration before running it. Some scripts generate large CSV files.
+---
 
+## Technology Stack
 
+| Component | Technology |
+|---|---|
+| Programming Language | Python |
+| Machine Learning | PyTorch, Transformers |
+| Natural Language Inference | XLM-RoBERTa |
+| Dense Evidence Retrieval | FAISS |
+| Lexical Retrieval | BM25 |
+| Multilingual Embeddings | Multilingual E5 |
+| Web Retrieval | DuckDuckGo search and webpage extraction |
+| Backend API | FastAPI |
+| Frontend | React, Vite |
+| Interactive Analysis | Jupyter Notebook |
+| Version Control | Git and GitHub |
 
-\## Current Limitations
+The table describes the intended stack; verify individual packages against the project's requirements files.
 
+---
 
+## Limitations
 
-TruthLens is an ongoing research and development project. Retrieval relevance, verdict correctness, confidence calibration, source reliability, and explanation quality still require systematic evaluation.
+- Verification quality depends on the availability, relevance, and reliability of retrieved evidence.
+- Real-time search results and webpage content may change or become unavailable.
+- Multilingual claims may be affected by translation ambiguity, context, and model limitations.
+- Source credibility and publication recency are useful signals but do not independently establish whether a claim is true.
+- Classification confidence should not be interpreted as a guarantee of factual correctness.
+- Reported model metrics apply to the evaluated dataset and split; further testing on independent and diverse data is necessary.
 
+---
 
+## Future Improvements
 
-A generated verdict should not be treated as definitive proof that a claim is true or false. Real-time sources may be incomplete, outdated, or unreliable.
+Potential future improvements include:
 
+- Expanding multilingual and domain-specific evidence coverage.
+- Improving retrieval quality and evidence deduplication.
+- Evaluating temporal reasoning and source credibility methods independently.
+- Conducting ablation studies to measure the contribution of each architecture component.
+- Evaluating generalization on external fact-checking datasets.
+- Improving confidence calibration and handling of insufficient evidence.
+- Adding evidence provenance, source links, and transparent explanations to the interface.
 
+---
 
-\## Contributing
+## Conclusion
 
+TruthLens combines historical fact-checking evidence, real-time retrieval, multilingual semantic ranking, natural language inference, and evidence-grounded explanations in a unified misinformation verification pipeline.
 
+The project also incorporates model training, hyperparameter tuning, evaluation metrics, and graphical analysis to support reproducible experimentation and academic assessment.
 
-Contributions and improvements are welcome.
-
-
-
-1\. Clone the repository.
-
-2\. Create a separate branch for your changes.
-
-3\. Install the dependencies.
-
-4\. Test your changes locally.
-
-5\. Submit a pull request or share your changes with the project maintainers.
-
-
-
-Before adding large datasets or generated files, check `.gitignore`, `.gitattributes`, and Git LFS storage limits.
-
-
-
-\## License
-
-
-
-No license has been specified yet. Please obtain permission before redistributing the original dataset or other third-party materials.
-
+**Project Repository:** [ShikhTomar/Fake_TruthChecker](https://github.com/ShikhTomar/Fake_TruthChecker)
